@@ -1,33 +1,51 @@
 # VeilWall
 
-**Local-first firewall policy management and simulation, built with Go and React.**
+**Design safer firewall policies. Test changes before trusting them.**
 
-![Version](https://img.shields.io/badge/version-1.0.0--beta.1-2563eb) ![Go](https://img.shields.io/badge/Go-1.23%2B-00ADD8) ![License](https://img.shields.io/badge/license-MIT-blue) ![Status](https://img.shields.io/badge/enforcement-disabled-orange)
+A local-first, open-source firewall policy management and simulation platform built with Go, React, Tailwind CSS and SQLite.
 
-VeilWall is an open-source development project for designing, testing and managing firewall policies from a single binary. Its signature transaction manager provides a 30-second confirmation window with automatic rollback, while its traffic lab evaluates synthetic IPv4 and IPv6 packets against a staged policy. The same React dashboard runs as a standalone GitHub Pages preview.
+[![Version](https://img.shields.io/badge/version-1.0.0--beta.1-2563eb)](https://github.com/TechieEngineer/veilwall/releases) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) ![Enforcement](https://img.shields.io/badge/enforcement-disabled-orange)
 
-> **Integrated beta, not a production firewall.** VeilWall does not capture, transmit, or filter network packets. It does not protect a host. The Linux adapter checks fixed nftables syntax only. Keep the existing system firewall enabled. Do not run this beta as root, grant network-administration capabilities, or expose its local management API to the public internet.
+**[Live browser demo](https://techieengineer.github.io/veilwall/) · [Source code](https://github.com/TechieEngineer/veilwall) · [API reference](docs/openapi.yaml) · [Releases](https://github.com/TechieEngineer/veilwall/releases)**
 
-## Features
+The live demo is available once GitHub Pages deployment succeeds.
 
-| Module | Included in this beta |
-|---|---|
-| Policy editor | Create, edit, delete, import/export JSON, priority, IPv4/IPv6 CIDR validation, disabled/active/shadow modes (simulated) |
-| Transactions | Stale revision protection, automatic/manual rollback, confirmation, graceful shutdown, retry on simulated restore failure |
-| Persistence | SQLite confirmed policies, audit events and hashed API keys |
-| Traffic lab | Synthetic packets, ordered first-match policy evaluation, shadow matches, live synthetic samples and fictional process labels |
-| Integration | Local REST API, scoped read/simulate bearer keys, expiration/revocation, SSE dashboard stream, OpenAPI reference |
-| Packaging | Embedded React/Tailwind frontend, browser-only Pages preview, setup scripts, Docker/user-systemd templates, CI and Linux prerelease binaries |
+> **Development beta — simulation only.** VeilWall does not currently capture, transmit, or filter real network packets, and cannot protect a machine as a production firewall. The Linux adapter validates fixed nftables syntax only. Keep your existing firewall enabled. No root access or network-administration capabilities are needed for the demo. Do not expose the local management API to the public internet.
+
+## Why I built VeilWall
+
+I wanted to explore how firewall management could be made safer, more accessible and easier to integrate into existing security tools. A small configuration mistake can interrupt legitimate traffic or lock an administrator out of a remote server. Rather than treating firewall rules as a collection of commands, I wanted to build a system where policies could be inspected, tested, changed with a confirmation window and rolled back when something goes wrong.
+
+VeilWall is my attempt to bring these ideas together: a clear dashboard, a modular Go backend, a policy simulator and a simple API for other developers. The long-term goal is to safeguard Linux systems through transparent, recoverable firewall management. This beta is the foundation for that goal, not a replacement for a working firewall.
+
+## What you can do today
+
+| Feature | Current capability |
+| --- | --- |
+| Policy editor | Create, edit, delete and reorder rules; JSON import/export |
+| Transaction manager | Stage changes, confirm within 30 seconds, or roll back automatically/manually |
+| Traffic lab | Evaluate fictional IPv4/IPv6 packets against policies without sending network traffic |
+| Shadow mode | Record simulated matches without changing the simulated verdict |
+| Observability | Synthetic telemetry, fictional process names, SSE dashboard updates |
+| Persistence | SQLite confirmed policies, audit records and hashed API keys |
+| Integration | Loopback REST endpoints with scoped read/simulate bearer keys |
+| Distribution | Embedded React dashboard, GitHub Pages demo, cross-platform demo builds |
 
 ## Quick start
 
-Install a supported Go version (minimum 1.23), Node.js 22.12+ or 24+, and Git. Official installers: [Go](https://go.dev/dl/), [Node.js](https://nodejs.org/), [Git](https://git-scm.com/downloads). SQLite is a pure-Go dependency; no separate SQLite server is needed.
+### Try it without installing anything
 
-Extract the archive into an empty directory. Open the directory containing `go.mod` and `web/package.json`, not an outer folder.
+Open the [public browser demo](https://techieengineer.github.io/veilwall/) after deployment. It runs in your browser with fictional data. It does not connect to a server, generate API credentials or modify your firewall. Browser demo state resets on reload.
 
-### Windows (PowerShell)
+### Run locally from source
+
+Install a supported [Go](https://go.dev/dl/) release (module minimum 1.23), [Node.js](https://nodejs.org/) 22.12+ or 24+, and [Git](https://git-scm.com/downloads). SQLite is embedded through a pure-Go driver; no separate database server is needed.
+
+**Windows — PowerShell**
 
 ```powershell
+git clone https://github.com/TechieEngineer/veilwall.git
+cd veilwall
 go mod tidy
 npm.cmd --prefix web install
 npm.cmd --prefix web test
@@ -37,7 +55,22 @@ go test ./... -v
 go run ./cmd/veilwall --demo --db=veilwall.db
 ```
 
-Open **http://127.0.0.1:8080** (not `localhost`, since Host is checked). Stop with Ctrl+C. If needed, append `--port=8090`. To build a standalone binary after compiling the frontend:
+**Linux / macOS — Bash**
+
+```bash
+git clone https://github.com/TechieEngineer/veilwall.git
+cd veilwall
+bash scripts/setup.sh
+./bin/veilwall --demo --db=veilwall.db
+```
+
+Open **[http://127.0.0.1:8080](http://127.0.0.1:8080)**. Use the exact printed address rather than `localhost`. If the port is busy, append `--port=8090` and update all API URLs accordingly. Stop with Ctrl+C. Run without administrator privileges. If a command fails, resolve that error before proceeding.
+
+Already cloned the repository? Skip the `git clone` and `cd veilwall` lines; run from the folder containing `go.mod`. Once `web/package-lock.json` exists and matches the package manifest, `npm.cmd --prefix web ci` (or `npm --prefix web ci` on Bash) provides a reproducible install.
+
+### Build a standalone Windows executable
+
+From the project root, after building the frontend:
 
 ```powershell
 New-Item -ItemType Directory -Force bin | Out-Null
@@ -46,105 +79,192 @@ go build -trimpath -o bin/veilwall.exe ./cmd/veilwall
 .\bin\veilwall.exe --demo --db=veilwall.db
 ```
 
-An equivalent build script is available at `scripts/setup.ps1`. No administrator permissions are needed. Use `npm.cmd --prefix web ci` once `package-lock.json` exists and matches `package.json`.
+The compiled application embeds the dashboard and database migrations. Go and Node.js are not needed to run that binary. Linux prerelease binaries, when successfully built and published, are available from [Releases](https://github.com/TechieEngineer/veilwall/releases) with SHA256 checksums.
 
-### Linux / macOS
+The default database is in memory (`:memory:`); the `--db=veilwall.db` option retains confirmed policies, audit records and keys. Keep the file private, use one daemon per database, and stop the daemon before backing it up. Never commit database files or secrets.
 
-```bash
-bash scripts/setup.sh
-./bin/veilwall --demo --db=veilwall.db
+## Test the dashboard
+
+1. In the empty Rules panel, select **Load sample policy**.
+2. Stage the draft and confirm within 30 seconds. Check that the rules remain.
+3. Edit a rule, stage again, and let the timer expire. Verify that the previous rules return and an audit event appears.
+4. In **Traffic lab**, evaluate an input TCP packet from `192.0.2.10` to `198.51.100.1` on port `443`. With the sample policy staged or confirmed, expect `accept` and a shadow match. Change the port to `80` to see a simulated `drop`.
+5. Export and re-import the policy JSON. Watch the synthetic telemetry update.
+6. In the local application, create and revoke a scoped API key. Restart with the same database path and verify persistence of confirmed policies.
+
+All sample addresses are documentation addresses; no packets are sent. The public demo supports simulation but not server-side API keys or SQLite.
+
+## Integrate VeilWall into another application
+
+VeilWall is designed to run independently of your existing application. For this beta, start VeilWall and the integrating backend on the **same machine and in the same network namespace**. The backend reads the integration API and forwards only the necessary non-secret data to its own frontend.
+
+```mermaid
+flowchart LR
+    UI[Your web dashboard] --> Backend[Your backend]
+    Backend -->|Scoped Bearer key| API[VeilWall local REST API]
+    API --> Engine[Policy simulator and telemetry]
+    API --> DB[(SQLite)]
 ```
 
-The `--db` default is `:memory:`. Use a private local directory and one daemon per database; confirmed policies and keys persist only when using a file. Pending changes are never stored, so restarting restores the last confirmed simulated state. Back up the database before upgrades, after stopping the daemon. Never commit a database or token.
+The public GitHub Pages demo is not an API host. This beta deliberately rejects cross-origin requests, non-loopback connections and mismatched Host headers; it also forbids framing the local dashboard. Do not place tokens in React, JavaScript bundles, GitHub Pages or public repositories. A backend running inside Docker generally has a different loopback interface; the simple examples below assume both processes run directly on the same host. Container/remote integrations need a separately designed authentication and networking boundary; do not remove the existing loopback safeguards.
 
-## Try it in five steps
+### Step 1 — Check service health
 
-1. Open the dashboard and select **Load sample policy** in the empty rules panel.
-2. Stage the draft. The server starts a 30-second timer; confirm to persist, or wait for automatic rollback.
-3. Open Traffic lab. Samples use documentation-only IP ranges, fictional process labels and synthetic byte counts. The simulator never sends network traffic.
-4. Evaluate a synthetic TCP packet from `192.0.2.10` to `198.51.100.1`, port 443. With the sample policy staged or confirmed, expect an accept verdict and a shadow match. Try port 80 to see a simulated denial.
-5. Create an API key for `read` or `simulate`, try the matching local integration endpoint, then revoke it. Keys are unavailable in the public browser demo.
+Keep VeilWall running. In a second PowerShell terminal:
+
+```powershell
+Invoke-RestMethod 'http://127.0.0.1:8080/api/v1/health'
+```
+
+On Bash:
+
+```bash
+curl -fsS http://127.0.0.1:8080/api/v1/health
+```
+
+Expected fields include `status: healthy`, `version: 1.0.0-beta.1`, `engine: demo` and `enforcement: false` (the engine label may depend on the mode).
+
+### Step 2 — Create a scoped integration key
+
+Open the local dashboard, find **Scoped API keys**, enter a name such as `My dashboard`, select **read** (or both **read** and **simulate** for the optional evaluation example), and generate a key. Copy the secret when it appears; it is returned only once. Keys expire after 30 days and can be revoked from the dashboard.
+
+### Step 3 — Copy-paste the integration commands (PowerShell)
+
+Run these in a second terminal while the local app is running. The key prompt is hidden and compatible with Windows PowerShell 5.1 and PowerShell 7.
+
+```powershell
+$secret = Read-Host 'VeilWall API key' -AsSecureString
+$key = ([System.Net.NetworkCredential]::new('', $secret)).Password
+$headers = @{ Authorization = "Bearer $key" }
+$base = 'http://127.0.0.1:8080/api/v1/integration'
+
+# Read status and synthetic telemetry
+Invoke-RestMethod -Uri "$base/stats" -Headers $headers
+Invoke-RestMethod -Uri "$base/telemetry" -Headers $headers
+```
+
+Optional: if you created a key with the `simulate` scope, evaluate a fictional packet:
+
+```powershell
+$packet = @{
+    direction = 'input'
+    protocol = 'tcp'
+    source = '192.0.2.10'
+    destination = '198.51.100.1'
+    port = 443
+} | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "$base/simulate" `
+    -Headers $headers -ContentType 'application/json' -Body $packet
+```
+
+When finished, clean up the session variables:
+
+```powershell
+Remove-Variable secret,key,headers,base -ErrorAction SilentlyContinue
+```
+
+### Step 4 — Use the API from Python
+
+For a minimal integration, save the following as `veilwall_client.py` and run `python veilwall_client.py` on the same host while VeilWall is running. Python 3 is the only additional requirement. No pip packages are needed. The key is prompted for rather than written into source code.
+
+```python
+import getpass
+import json
+import urllib.request
+import urllib.error
+
+BASE = 'http://127.0.0.1:8080/api/v1/integration'
+key = getpass.getpass('VeilWall read API key: ')
+
+
+def get_veilwall(endpoint):
+    if endpoint not in ('stats', 'telemetry'):
+        raise ValueError('Unsupported endpoint')
+    request = urllib.request.Request(
+        f'{BASE}/{endpoint}',
+        headers={'Authorization': f'Bearer {key}'},
+    )
+    with urllib.request.urlopen(request, timeout=5) as response:
+        return json.load(response)
+
+
+try:
+    stats = get_veilwall('stats')
+    print(json.dumps(stats, indent=2))
+except urllib.error.URLError as error:
+    print(f'VeilWall unavailable or request rejected: {error}')
+```
+
+For a persistent backend integration, load the key from a private environment variable or secret manager instead of prompting. Use `get_veilwall('stats')` in your backend's own authenticated status route. A separate frontend can render the returned rule count, shadow count and engine status without ever receiving the API key. Handle connection failures and label the data as simulated.
+
+### Integration API reference
+
+| Method | Endpoint | Scope | Returns |
+| --- | --- | --- | --- |
+| GET | `/api/v1/integration/stats` | `read` | Engine, enforcement flag, rule counts and uptime |
+| GET | `/api/v1/integration/telemetry` | `read` | A synthetic traffic sample |
+| POST | `/api/v1/integration/simulate` | `simulate` | Simulated verdict, matching rule and shadow matches |
+
+Example statistics response (illustrative):
+
+```json
+{
+  "engine": "demo",
+  "enforcement": false,
+  "rules": 3,
+  "active": 2,
+  "shadow": 1,
+  "uptime_seconds": 120
+}
+```
+
+- `401`: missing or malformed bearer credential.
+- `403`: invalid, revoked, expired or insufficiently scoped key, or a local access check failed.
+- `400`: invalid simulation input.
+- `415`: simulation request must use `Content-Type: application/json`.
+
+The integration API cannot mutate policies. The local dashboard has separate administrative routes and a browser-origin protection token; this is not multi-user login. Local processes with port access are trusted. The SSE route `/api/v1/telemetry/stream` is for the local dashboard, not a bearer-authenticated integration stream. See the full [OpenAPI specification](docs/openapi.yaml).
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-  R[React dashboard] --> A[Local HTTP API]
-  X[Local integration client] --> K[Scoped bearer authorization]
-  K --> A
-  A --> M[Transaction manager]
-  M --> E[Simulated engine]
-  M --> DB[(SQLite)]
-  A --> P[Policy evaluator]
-  P --> T[Synthetic telemetry / SSE]
-  T --> R
-  N[Linux syntax-check adapter] --> E
-  G[GitHub Pages] --> B[Browser-only simulation]
+    React[React and Tailwind dashboard] --> HTTP[Go local HTTP API]
+    Integration[Scoped integration client] --> HTTP
+    HTTP --> Manager[Transaction manager]
+    Manager --> Engine[Simulated firewall engine]
+    Manager --> SQLite[(SQLite)]
+    HTTP --> Evaluator[IPv4 and IPv6 policy evaluator]
+    Evaluator --> Telemetry[Synthetic telemetry]
+    Telemetry --> React
+    Pages[GitHub Pages] --> Browser[Browser-only simulation]
 ```
 
-The browser preview evaluates packets independently without a server. In the local app the Go evaluator is authoritative. Rules sort by ascending priority, then ID; disabled rules are ignored, shadow matches are recorded until the first terminal active rule, and the default verdict is accept. This is a simplified policy model, not a complete model of Linux netfilter.
+Policies are evaluated in ascending priority, then ID order. Disabled rules are ignored, shadow matches are collected until the first terminal active rule, and the default simulated verdict is accept. This is not a full Linux netfilter model.
 
-## Local API
+## Publishing the GitHub Pages preview
 
-All requests are loopback-only with an exact Host header. The local dashboard trusts other local processes; the session token is a browser-origin protection, not multi-user login. Integration keys are hashed with SHA-256, use 256-bit random secrets, expire after 30 days, and never grant rule mutation privileges. Only the key creation response returns the raw key. API keys are not accepted for the administrative routes.
+For maintainers: the repository already contains [the Pages workflow](.github/workflows/pages.yml).
 
-| Method | Endpoint | Purpose |
-|---|---|---|
-| GET | `/api/v1/health` | Version and status |
-| GET | `/api/v1/rules` | Rule state and revision |
-| GET | `/api/v1/stats` | Rule counts and uptime |
-| GET | `/api/v1/audit` | Latest audit events |
-| POST | `/api/v1/rules/apply` | Stage validated rule set |
-| POST | `/api/v1/transactions/{id}/confirm` | Confirm |
-| POST | `/api/v1/transactions/{id}/rollback` | Roll back |
-| GET | `/api/v1/telemetry` | Synthetic sample |
-| GET | `/api/v1/telemetry/stream` | Bounded SSE stream; reconnects |
-| POST | `/api/v1/simulate` | Evaluate synthetic packet |
-| GET/POST | `/api/v1/keys` | List/create keys (local token) |
-| POST | `/api/v1/keys/{id}/revoke` | Revoke key (local token) |
-| GET | `/api/v1/integration/stats` | Bearer scope: read |
-| GET | `/api/v1/integration/telemetry` | Bearer scope: read |
-| POST | `/api/v1/integration/simulate` | Bearer scope: simulate |
+1. Open repository **Settings → Pages** and select **GitHub Actions** as the source.
+2. Open **Actions → Browser demo on GitHub Pages → Run workflow**, choose `main`, and run it.
+3. When both build and deploy jobs pass, open the deployment URL printed by GitHub. For this repository it should be `https://techieengineer.github.io/veilwall/`.
+4. On the repository home page, use the **About** settings (gear icon) to set the website URL to the deployed demo and enable the relevant topics.
 
-Local POST routes require `X-Veilwall-Token` from `/api/v1/bootstrap` and `Content-Type: application/json`. No public CORS or remote admin access is enabled. Do not include a key in frontend source or GitHub Pages.
+The workflow builds with `VITE_STATIC_DEMO=true` so the public preview does not depend on the Go backend. GitHub Pages cannot host the executable or its API.
 
-Example PowerShell integration (paste a freshly issued read key at the prompt; do not put it in a repository):
+## Deployment and release status
 
-```powershell
-$key = Read-Host 'Temporary read API key'
-Invoke-RestMethod -Uri 'http://127.0.0.1:8080/api/v1/integration/stats' -Headers @{Authorization="Bearer $key"}
-Remove-Variable key
-```
+Linux Docker and user-systemd demo templates are included under `deploy/`. They are for unprivileged simulation only. Linux binary releases are generated by the release workflow when a matching version tag is pushed and CI/build succeeds. See [publishing guide](docs/publish.md) and [verification notes](docs/verification.md).
 
-See [OpenAPI](docs/openapi.yaml), [architecture](docs/architecture.md) and [verification](docs/verification.md).
+Before publishing updates, run `go vet ./...`, `go test ./... -v`, `npm --prefix web test` and `npm --prefix web run build`. Commit generated `go.sum` and `web/package-lock.json`, not `node_modules`, databases, tokens or executables.
 
-## Deployment
+## Roadmap toward stable v1.0
 
-- **GitHub Pages:** repository Settings → Pages → Source: GitHub Actions; run the Browser demo on GitHub Pages workflow. This serves a simulation only; it cannot run Go, SQLite or nftables. Browser state resets on reload.
-- **Linux binaries:** push a `v1.0.0-beta.1` tag after CI passes; release workflow publishes linux/amd64 and linux/arm64 artifacts plus SHA256SUMS as a prerelease.
-- **Linux Docker:** `docker compose -f deploy/docker/docker-compose.yml up --build` runs the unprivileged demo. Linux host networking is used only to bind the loopback dashboard; no NET_ADMIN/NET_RAW capabilities are granted. This template is not a Windows Docker Desktop deployment guide.
-- **Linux user systemd:** after building, `bash deploy/install.sh` installs the demo as a regular-user service. It does not install or modify host firewall rules.
+Native nftables rule enforcement, independently recoverable rollback, SSH and loopback safeguards, kernel coexistence tests, real connection/process telemetry, threat feed validation, WebSocket and webhook integrations, secure remote administration and production security review are **not yet implemented**. The current beta uses SSE and synthetic data. Stable release requires these features and independent safety testing.
 
-## Publish your own repository
+## Contributing and license
 
-Create an empty repository named `veilwall`, then run from the project root after tests pass:
+Feedback, bug reports, documentation improvements and reproducible test cases are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [architecture notes](docs/architecture.md) and the [changelog](CHANGELOG.md).
 
-```bash
-git init
-git add .
-git status
-git commit -m "feat: integrated VeilWall v1 beta"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/veilwall.git
-git push -u origin main
-```
-
-If a repository is already connected, keep its existing `.git` folder and remote, commit the updated source, and use `git push`. Do not force-push. Track `go.sum` and `web/package-lock.json` after generating them; never track node_modules, build outputs, databases, or secrets. See [publishing guide](docs/publish.md) for the release gate.
-
-## Remaining release gates
-
-Stable v1.0 requires native rule compilation and enforcement, an independent crash-safe rollback watchdog, SSH and loopback guardrails, kernel coexistence and recovery tests, real packet/process telemetry, authenticated remote administration, public feed validation, WebSockets and webhooks, plus a security review. This beta uses SSE instead of WebSockets and synthetic traffic rather than kernel measurements. No online threat feed or outbound webhooks are implemented. Do not represent any of these as shipped.
-
-## Contributing
-
-Run `go test ./... -v`, `go vet ./...` and `npm --prefix web test` before opening a PR. See [CONTRIBUTING](CONTRIBUTING.md) and [SECURITY](SECURITY.md). Licensed under [MIT](LICENSE).
+Released under the [MIT License](LICENSE).
