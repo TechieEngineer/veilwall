@@ -1,0 +1,320 @@
+openapi: 3.1.0
+info:
+  title: VeilWall local simulation API
+  version: 1.0.0-beta.1
+  description: Loopback-only policy simulation API; no native enforcement or remote
+    user authentication.
+servers:
+- url: http://127.0.0.1:8080
+paths:
+  /api/v1/health:
+    get:
+      responses:
+        '200':
+          description: Service health and enforcement status
+  /api/v1/bootstrap:
+    get:
+      responses:
+        '200':
+          description: Ephemeral local mutation token
+  /api/v1/stats:
+    get:
+      responses:
+        '200':
+          description: Simulated rule counts and uptime
+  /api/v1/rules:
+    get:
+      responses:
+        '200':
+          description: Rule array
+          pending transaction: null
+          revision and last event: null
+  /api/v1/audit:
+    get:
+      responses:
+        '200':
+          description: Last 100 audit events
+  /api/v1/rules/apply:
+    post:
+      security:
+      - LocalToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - rules
+              - revision
+              properties:
+                revision:
+                  type: integer
+                  minimum: 0
+                rules:
+                  type: array
+                  maxItems: 500
+                  items:
+                    $ref: '#/components/schemas/Rule'
+      responses:
+        '201':
+          description: Pending transaction ID and expiration time
+        '400':
+          description: Invalid input
+        '403':
+          description: Access denied
+        '409':
+          description: Stale revision or pending transaction
+  /api/v1/transactions/{id}/confirm:
+    post:
+      parameters:
+      - $ref: '#/components/parameters/TransactionID'
+      security:
+      - LocalToken: []
+      responses:
+        '200':
+          description: Confirmed and persisted
+        '409':
+          description: Invalid or expired transaction
+  /api/v1/transactions/{id}/rollback:
+    post:
+      parameters:
+      - $ref: '#/components/parameters/TransactionID'
+      security:
+      - LocalToken: []
+      responses:
+        '200':
+          description: Restored previous simulated rules
+        '409':
+          description: Invalid transaction
+  /api/v1/telemetry:
+    get:
+      responses:
+        '200':
+          description: Synthetic packet sample
+        '400':
+          description: Invalid request
+        '403':
+          description: Access denied
+  /api/v1/telemetry/stream:
+    get:
+      responses:
+        '200':
+          description: Synthetic samples, 10-second stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '429':
+          description: Stream capacity exceeded
+  /api/v1/simulate:
+    post:
+      responses:
+        '200':
+          description: Synthetic verdict and shadow matches
+        '400':
+          description: Invalid request
+        '403':
+          description: Access denied
+      security:
+      - LocalToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: &id001
+              $ref: '#/components/schemas/Packet'
+  /api/v1/keys:
+    get:
+      responses:
+        '200':
+          description: Key metadata, no secret
+        '400':
+          description: Invalid request
+        '403':
+          description: Access denied
+      security:
+      - LocalToken: []
+    post:
+      responses:
+        '201':
+          description: Created key metadata and one-time raw token
+        '400':
+          description: Invalid request
+        '403':
+          description: Access denied
+      security:
+      - LocalToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - name
+              - scopes
+              properties:
+                name:
+                  type: string
+                scopes:
+                  type: array
+                  items:
+                    enum:
+                    - read
+                    - simulate
+  /api/v1/keys/{id}/revoke:
+    post:
+      responses:
+        '200':
+          description: Revoked
+        '400':
+          description: Invalid request
+        '403':
+          description: Access denied
+      security:
+      - LocalToken: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+  /api/v1/integration/stats:
+    get:
+      responses:
+        '200':
+          description: Rule counts (read scope)
+        '400':
+          description: Invalid request
+        '403':
+          description: Access denied
+        '401':
+          description: Missing bearer key
+      security:
+      - BearerKey: []
+  /api/v1/integration/telemetry:
+    get:
+      responses:
+        '200':
+          description: Synthetic sample (read scope)
+        '400':
+          description: Invalid request
+        '403':
+          description: Access denied
+        '401':
+          description: Missing bearer key
+      security:
+      - BearerKey: []
+  /api/v1/integration/simulate:
+    post:
+      responses:
+        '200':
+          description: Simulated verdict (simulate scope)
+        '400':
+          description: Invalid request
+        '403':
+          description: Access denied
+        '401':
+          description: Missing bearer key
+      security:
+      - BearerKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id001
+components:
+  securitySchemes:
+    LocalToken:
+      type: apiKey
+      in: header
+      name: X-Veilwall-Token
+    BearerKey:
+      type: http
+      scheme: bearer
+      description: 30-day read or simulate scoped integration key
+  parameters:
+    TransactionID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    Rule:
+      type: object
+      required:
+      - id
+      - name
+      - direction
+      - protocol
+      - action
+      - mode
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        direction:
+          enum:
+          - input
+          - output
+          - forward
+        protocol:
+          enum:
+          - any
+          - tcp
+          - udp
+          - icmp
+          - icmpv6
+        source:
+          type: string
+        destination:
+          type: string
+        port:
+          type: integer
+          minimum: 0
+          maximum: 65535
+        action:
+          enum:
+          - accept
+          - drop
+          - reject
+        mode:
+          enum:
+          - active
+          - shadow
+          - disabled
+        priority:
+          type: integer
+          minimum: 0
+          maximum: 10000
+    Packet:
+      type: object
+      required:
+      - direction
+      - protocol
+      - source
+      - destination
+      - port
+      properties:
+        direction:
+          enum:
+          - input
+          - output
+          - forward
+        protocol:
+          enum:
+          - tcp
+          - udp
+          - icmp
+          - icmpv6
+        source:
+          type: string
+        destination:
+          type: string
+        port:
+          type: integer
+          minimum: 0
+          maximum: 65535

@@ -1,0 +1,13 @@
+import {evaluate,sample,validateRules} from './preview.js';
+// Static Pages preview uses the same UI but no backend or kernel access.
+export const staticDemo = import.meta.env.VITE_STATIC_DEMO === 'true' || import.meta.env.DEV;
+let token;
+let state = {rules:[],pending:null,revision:0,last_event:'ready'};
+let previous=[], logs=[];
+const copy=x=>structuredClone(x);
+function event(action,id){logs.unshift({id:Date.now(),action,actor:'preview',transaction_id:id,details:'Browser-only simulation',success:true,created_at:new Date().toISOString()});logs=logs.slice(0,100)}
+function expire(){if(state.pending && Date.now()>=Date.parse(state.pending.expires_at)){let id=state.pending.id;state={rules:previous,pending:null,revision:state.revision+1,last_event:'expired'};event('expired',id)}}
+async function local(path,body){expire();if(path==='/rules')return copy(state);if(path==='/stats')return {engine:'browser-preview',enforcement:false,rules:state.rules.length,active:state.rules.filter(r=>r.mode==='active').length,shadow:state.rules.filter(r=>r.mode==='shadow').length};if(path==='/audit')return copy(logs);if(path==='/telemetry')return sample(state.rules);if(path==='/simulate')return evaluate(state.rules,body);
+ if(path==='/rules/apply'){validateRules(body.rules);if(state.pending||body.revision!==state.revision)throw Error('Transaction conflict');previous=copy(state.rules);let pending={id:crypto.randomUUID(),expires_at:new Date(Date.now()+30000).toISOString()};state={rules:copy(body.rules),pending,revision:state.revision+1,last_event:'staged'};event('staged',pending.id);return pending}
+ const match=path.match(/^\/transactions\/([^/]+)\/(confirm|rollback)$/);if(match){if(!state.pending||state.pending.id!==match[1])throw Error('Transaction expired');let action=match[2]==='confirm'?'confirmed':'rolled_back';state={rules:action==='confirmed'?state.rules:previous,pending:null,revision:state.revision+1,last_event:action};event(action,match[1]);return {status:action}}throw Error('Unknown preview endpoint');}
+export async function request(path,body){if(staticDemo)return local(path,body);let options={cache:'no-store'};if(body!==undefined||path==='/keys'){if(!token){const r=await fetch('/api/v1/bootstrap',options);if(!r.ok)throw Error('Local session unavailable');token=(await r.json()).token}options={...options,headers:{'Content-Type':'application/json','X-Veilwall-Token':token},...(body===undefined?{}:{method:'POST',body:JSON.stringify(body)})}}const response=await fetch('/api/v1'+path,options);const data=await response.json();if(!response.ok){if(response.status===403)token=undefined;throw Error(data.error||'Request failed')}return data;}

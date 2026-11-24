@@ -1,0 +1,17 @@
+[Unit]
+Description=VeilWall simulation dashboard
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/veilwall --demo --db=%h/.local/share/veilwall/rules.db
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=default.target

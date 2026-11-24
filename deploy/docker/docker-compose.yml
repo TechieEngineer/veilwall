@@ -1,0 +1,12 @@
+# Linux Docker Engine only; no privileges, no capabilities, no host firewall access.
+services:
+  veilwall:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    network_mode: host
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs: [/tmp:rw,noexec,nosuid,size=16m]
+    restart: unless-stopped

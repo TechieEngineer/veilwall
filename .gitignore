@@ -1,0 +1,13 @@
+/bin/
+/veilwall
+/veilwall.exe
+/web/node_modules/
+/web/dist/*
+!/web/dist/.gitkeep
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.*
+*.log
+.DS_Store

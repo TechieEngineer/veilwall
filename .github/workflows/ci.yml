@@ -1,0 +1,36 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+          cache: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Go dependencies
+        run: go mod tidy
+      - name: Install frontend dependencies
+        shell: bash
+        run: if [ -f web/package-lock.json ]; then npm --prefix web ci; else npm --prefix web install; fi
+      - run: npm --prefix web test
+      - name: Build frontend
+        run: npm --prefix web run build
+      - run: go mod verify
+      - run: go vet ./...
+      - run: go test ./... -v
+      - run: go build -trimpath ./cmd/veilwall
+        env:
+          CGO_ENABLED: '0'

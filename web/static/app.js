@@ -1,0 +1,1 @@
+fetch('/api/v1/stats').then(r=>{if(!r.ok)throw Error('API unavailable');return r.json()}).then(x=>document.querySelector('#status').textContent=JSON.stringify(x,null,2)).catch(e=>document.querySelector('#status').textContent=e.message);
